@@ -439,7 +439,7 @@ Transaction.prototype.verifyBytes = function (bytes, publicKey, signature) {
 			data2[i] = bytes[i];
 		}
 
-		var hash = crypto.createHash('sha256').update(data2).digest();
+		var hash = crypto.createHash('sha1').update(data2).digest();
 		var signatureBuffer = new Buffer(signature, 'hex');
 		var publicKeyBuffer = new Buffer(publicKey, 'hex');
 		var res = ed.Verify(hash, signatureBuffer || ' ', publicKeyBuffer || ' ');
