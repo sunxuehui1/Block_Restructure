@@ -28,6 +28,30 @@ function Account(scope, cb) {
 			constante: true
 		},
 		{
+			name: "LOGIN_NAME",
+			type: "String",
+			foreign_key: true,
+			length: 20,
+			filter: {
+				type: "string",
+				maxLength: 20,
+				minLength: 1
+			},
+			conv: String,
+			constante: true
+		},
+		{
+			name: "PRIVATE_SECRET",
+			type: "String",
+			length: 32,
+			filter: {
+				type: "string",
+				minLength: 1
+			},
+			conv: String,
+			constante: true
+		},
+		{
 			name: "isDelegate",
 			type: "BigInt",
 			filter: {
