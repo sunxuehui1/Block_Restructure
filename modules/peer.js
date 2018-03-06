@@ -33,8 +33,6 @@ privated.attachApi = function () {
 
 	router.map(shared, {
 		"get /": "getPeers",
-		"get /version": "version",
-		"get /get": "getPeer"
 	});
 
 	router.use(function (req, res) {
@@ -344,19 +342,21 @@ Peer.prototype.onBind = function (scope) {
 	modules = scope;
 };
 
+//写入节点源头
 Peer.prototype.onBlockchainReady = function () {
+//读取配置文件节点，插入
 	async.eachSeries(library.config.peers.list, function (peer, cb) {
 		library.dbLite.query("INSERT OR IGNORE INTO peers(ip, port, state, sharePort) VALUES($ip, $port, $state, $sharePort)", {
 			ip: ip.toLong(peer.ip),
 			port: peer.port,
-			state: 2,
+			state: 2,//初始状态为2，都是健康的节点
 			sharePort: Number(true)
 		}, cb);
 	}, function (err) {
 		if (err) {
 			library.logger.error('onBlockchainReady', err);
 		}
-
+//统计节点数
 		privated.count(function (err, count) {
 			if (count) {
 				privated.updatePeerList(function (err) {
@@ -372,6 +372,7 @@ Peer.prototype.onBlockchainReady = function () {
 };
 
 Peer.prototype.onPeerReady = function () {
+	//循环更新节点列表
 	setImmediate(function nextUpdatePeerList() {
 		privated.updatePeerList(function (err) {
 			err && library.logger.error('updatePeerList timer', err);
@@ -379,6 +380,7 @@ Peer.prototype.onPeerReady = function () {
 		})
 	});
 
+	//循环更新节点状态
 	setImmediate(function nextBanManager() {
 		privated.banManager(function (err) {
 			err && library.logger.error('banManager timer', err);
@@ -448,58 +450,6 @@ shared.getPeers = function (req, cb) {
 			cb(null, {peers: peers});
 		});
 	});
-};
-
-shared.getPeer = function (req, cb) {
-	var query = req.body;
-	library.scheme.validate(query, {
-		type: "object",
-		properties: {
-			ip_str: {
-				type: "string",
-				minLength: 1
-			},
-			port: {
-				type: "integer",
-				minimum: 0,
-				maximum: 65535
-			}
-		},
-		required: ['ip_str', 'port']
-	}, function (err) {
-		if (err) {
-			return cb(err[0].message);
-		}
-
-		try {
-			var ip_str = ip.toLong(query.ip_str);
-						var port=query.port;
-
-		} catch (e) {
-			return cb("Invalid peer");
-		}
-
-		privated.getByFilter({
-			ip: ip_str,
-			port: port
-		}, function (err, peers) {
-			if (err) {
-				return cb("Peer not found");
-			}
-
-			var peer = peers.length ? peers[0] : null;
-
-			if (peer) {
-				peer.ip = ip.fromLong(peer.ip);
-			}
-
-			cb(null, {peer: peer || {}});
-		});
-	});
-};
-
-shared.version = function (req, cb) {
-	cb(null, {version: library.config.version, build: library.build});
 };
 
 // Export

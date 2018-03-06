@@ -1,7 +1,6 @@
 {
     "port": 7004,
-    "ipport": "http://192.168.100.100:9092",
-    "isclear":1,
+    "ipport": "http://1.1.1.1",
     "address": "0.0.0.0",
     "serveHttpAPI": true,
     "serveHttpWallet": true,
@@ -16,14 +15,6 @@
     },
     "peers": {
         "list": [
-            {
-               "ip": "192.168.100.126",
-                "port": 7004
-            },
-            {
-                "ip": "192.168.100.7",
-                "port": 7004
-            }
         ],
         "blackList": [],
         "options": {

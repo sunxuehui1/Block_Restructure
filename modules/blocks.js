@@ -97,14 +97,7 @@ privated.attachApi = function () {
 	});
 
 	router.map(shared, {
-		"get /get": "getBlock",
-		"get /": "getBlocks",
-		"get /getHeight": "getHeight",
-		"get /getFee": "getFee",
-		"get /getMilestone": "getMilestone",
-		"get /getReward": "getReward",
-		"get /getSupply": "getSupply",
-		"get /getStatus": "getStatus"
+		"get /": "getBlocks"
 	});
 
 	router.use(function (req, res, next) {
@@ -147,108 +140,47 @@ privated.deleteBlock = function (blockId, cb) {
 };
 
 privated.list = function (filter, cb) {
-	var sortFields = ['b.id', 'b.timestamp', 'b.height', 'b.previousBlock', 'b.totalAmount', 'b.totalFee', 'b.reward', 'b.numberOfTransactions', 'b.generatorPublicKey'];
-	var params = {}, fields = [], sortMethod = '', sortBy = '';
-	if (filter.generatorPublicKey) {
-		fields.push('lower(hex(generatorPublicKey)) = $generatorPublicKey');
-		params.generatorPublicKey = filter.generatorPublicKey;
+	var params = {}, fields = [];
+	if (filter.ID) {
+		fields.push('id = ID');
+		params.ID = filter.ID;
 	}
 
-	if (filter.numberOfTransactions) {
-		fields.push('numberOfTransactions = $numberOfTransactions');
-		params.numberOfTransactions = filter.numberOfTransactions;
+	if (filter.PREVIOUS_BLOCK) {
+		fields.push('previousBlock = $PREVIOUS_BLOCK');
+		params.PREVIOUS_BLOCK = filter.PREVIOUS_BLOCK;
 	}
 
-	if (filter.previousBlock) {
-		fields.push('previousBlock = $previousBlock');
-		params.previousBlock = filter.previousBlock;
+	if (filter.start !== null) {
+		params.start = filter.start;
 	}
 
-	if (filter.height === 0 || filter.height > 0) {
-		fields.push('height = $height');
-		params.height = filter.height;
-	}
-
-	if (filter.totalAmount >= 0) {
-		fields.push('totalAmount = $totalAmount');
-		params.totalAmount = filter.totalAmount;
-	}
-
-	if (filter.totalFee >= 0) {
-		fields.push('totalFee = $totalFee');
-		params.totalFee = filter.totalFee;
-	}
-
-	if (filter.reward >= 0) {
-		fields.push('reward = $reward');
-		params.reward = filter.reward;
-	}
-
-	if (filter.orderBy) {
-		var sort = filter.orderBy.split(':');
-		sortBy = sort[0].replace(/[^\w\s]/gi, '');
-		sortBy = "b." + sortBy;
-		if (sort.length == 2) {
-			sortMethod = sort[1] == 'desc' ? 'desc' : 'asc';
-		} else {
-			sortMethod = 'desc';
+	if (filter.limit !== null) {
+		if (filter.limit > 100) {
+			return cb("Invalid limit. Maximum is 100");
 		}
+		params.limit = filter.limit;
 	}
 
-
-	if (sortBy) {
-		if (sortFields.indexOf(sortBy) < 0) {
-			return cb("Invalid sort field");
-		}
-	}
-
-	if (!filter.limit) {
-		filter.limit = 100;
-	}
-
-	if (!filter.offset) {
-		filter.offset = 0;
-	}
-
-	params.limit = filter.limit;
-	params.offset = filter.offset;
-
-	if (filter.limit > 100) {
-		return cb("Invalid limit. Maximum is 100");
-	}
-
-	library.dbLite.query("select count(b.id) " +
-		"from blocks b " +
-		(fields.length ? "where " + fields.join(' and ') : ''), params, {count: Number}, function (err, rows) {
-		if (err) {
-			return cb(err);
-		}
-
-		var count = rows[0].count;
-
-		library.dbLite.query("select b.id, b.version, b.timestamp, b.height, b.previousBlock, b.numberOfTransactions, b.totalAmount, b.totalFee, b.reward, b.payloadLength, lower(hex(b.payloadHash)), lower(hex(b.generatorPublicKey)), lower(hex(b.blockSignature)), (select max(height) + 1 from blocks) - b.height " +
-			"from blocks b " +
-			(fields.length ? "where " + fields.join(' and ') : '') + " " +
-			(filter.orderBy ? 'order by ' + sortBy + ' ' + sortMethod : '') + " limit $limit offset $offset ", params, ['b_id', 'b_version', 'b_timestamp', 'b_height', 'b_previousBlock', 'b_numberOfTransactions', 'b_totalAmount', 'b_totalFee', 'b_reward', 'b_payloadLength', 'b_payloadHash', 'b_generatorPublicKey', 'b_blockSignature', 'b_confirmations'], function (err, rows) {
-			if (err) {
-				library.logger.error(err);
-				return cb(err);
-			}
-
-			var blocks = [];
-			for (var i = 0; i < rows.length; i++) {
-				blocks.push(library.logic.block.dbRead(rows[i]));
-			}
-
-			var data = {
-				blocks: blocks,
-				count: count
-			};
-
-			cb(null, data);
+		library.dbLite.query("SELECT id,version,timestamp,height,previousBlock,numberOfTransactions,totalAmount,totalFee,reward FROM blocks" + 
+			(fields.length ? (' where ' + fields.join(' and ')) : '') + " " +
+			(params.start ? ' offset $start' : '') +
+			(params.limit ? ' limit $limit ' : ''),
+			params,['ID','VERSION','TIMESTAMP','HEIGHT','PREVIOUS_ID','NUMBER_OF_TRANSACTIONS','TOTALAMOUNT','TOTALFEE','REWARD'], function (err, rows) {
+				var data = {};
+				data.blocks = rows;
+				for(var i = 0;i < data.blocks.length;i++) {
+					data.blocks[i].ROOT_ID = "039abdb00e4b16e1a331e242c616d83b35e8bcf0";
+					data.blocks[i].SIZE = (10 + Number((data.blocks[i].NUMBER_OF_TRANSACTIONS/10).toFixed(1))) + "KB";
+				}
+				library.dbLite.query("select id from blocks" + 
+				(fields.length ? (' where ' + fields.join(' and ')) : ''),
+				params, ['id'], function (err, rows) {
+					data.count = rows.length;
+					cb(null, data);
+				});
 		});
-	});
-};
+    }
 
 privated.getById = function (id, cb) {
 	library.dbLite.query("select b.id, b.version, b.timestamp, b.height, b.previousBlock, b.numberOfTransactions, b.totalAmount, b.totalFee, b.reward, b.payloadLength,  lower(hex(b.payloadHash)), lower(hex(b.generatorPublicKey)), lower(hex(b.blockSignature)), (select max(height) + 1 from blocks) - b.height " +
@@ -1207,36 +1139,6 @@ Blocks.prototype.cleanup = function (cb) {
 	}
 };
 
-// Shared
-shared.getBlock = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body;
-	library.scheme.validate(query, {
-		type: "object",
-		properties: {
-			id: {
-				type: 'string',
-				minLength: 1
-			}
-		},
-		required: ["id"]
-	}, function (err) {
-		if (err) {
-			return cb(err[0].message);
-		}
-
-		library.dbSequence.add(function (cb) {
-			privated.getById(query.id, function (err, block) {
-				if (!block || err) {
-					return cb("Block not found");
-				}
-				cb(null, {block: block});
-			});
-		}, cb);
-	});
-};
 
 shared.getBlocks = function (req, cb) {
 	if (!privated.loaded) {
@@ -1246,41 +1148,20 @@ shared.getBlocks = function (req, cb) {
 	library.scheme.validate(query, {
 		type: "object",
 		properties: {
+			ID: {
+				type: "string"
+			},
+			PREVIOUS_BLOCK: {
+				type: "string"
+			},
+			start: {
+				type: "integer",
+				minimum: 0
+			},
 			limit: {
 				type: "integer",
 				minimum: 0,
 				maximum: 100
-			},
-			orderBy: {
-				type: "string"
-			},
-			offset: {
-				type: "integer",
-				minimum: 0
-			},
-			generatorPublicKey: {
-				type: "string",
-				format: "publicKey"
-			},
-			totalAmount: {
-				type: "integer",
-				minimum: 0,
-				maximum: constants.totalAmount
-			},
-			totalFee: {
-				type: "integer",
-				minimum: 0,
-				maximum: constants.totalAmount
-			},
-			reward: {
-				type: "integer",
-				minimum: 0
-			},
-			previousBlock: {
-				type: "string"
-			},
-			height: {
-				type: "integer"
 			}
 		}
 	}, function (err) {
@@ -1293,63 +1174,9 @@ shared.getBlocks = function (req, cb) {
 				if (err) {
 					return cb("Database error");
 				}
-				cb(null, {blocks: data.blocks, count: data.count});
+				cb(null, {BLOCKS: data.blocks, TOTAL: data.count});
 			});
 		}, cb);
-	});
-};
-
-shared.getHeight = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body;
-	cb(null, {height: privated.lastBlock.height});
-};
-
-shared.getFee = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body;
-	cb(null, {fee: library.logic.block.calculateFee()});
-};
-
-shared.getMilestone = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body, height = privated.lastBlock.height;
-	cb(null, {milestone: privated.milestones.calcMilestone(height)});
-};
-
-shared.getReward = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body, height = privated.lastBlock.height;
-	cb(null, {reward: privated.milestones.calcReward(height)});
-};
-
-shared.getSupply = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body, height = privated.lastBlock.height;
-	cb(null, {supply: privated.milestones.calcSupply(height)});
-};
-
-shared.getStatus = function (req, cb) {
-	if (!privated.loaded) {
-		cb("Blockchain is loading");
-	}
-	var query = req.body, height = privated.lastBlock.height;
-	cb(null, {
-		height:    height,
-		fee:       library.logic.block.calculateFee(),
-		milestone: privated.milestones.calcMilestone(height),
-		reward:    privated.milestones.calcReward(height),
-		supply:    privated.milestones.calcSupply(height)
 	});
 };
 

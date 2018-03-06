@@ -478,10 +478,12 @@ Transport.prototype.getFromRandomPeer = function (config, options, cb) {
 		config = {};
 	}
 	config.limit = 1;
+	//retry(opts, task, callback)
 	async.retry(20, function (cb) {
 		modules.peer.list(config, function (err, peers) {
 			if (!err && peers.length) {
 				var peer = peers[0];
+				//查到一个节点，就会传给getFromPeer/检验处理现存节点
 				self.getFromPeer(peer, options, cb);
 			} else {
 				return cb(err || "No peers in db");
@@ -528,7 +530,7 @@ Transport.prototype.getFromPeer = function (peer, options, cb) {
 		req.body = options.data;
 	}
 
-
+//request模拟浏览器访问信息
 	return request(req, function (err, response, body) {
 		if (err || response.statusCode != 200) {
 			library.logger.debug('Request', {
@@ -539,6 +541,7 @@ Transport.prototype.getFromPeer = function (peer, options, cb) {
 
 			if (peer) {
 				if (err && (err.code == "ETIMEDOUT" || err.code == "ESOCKETTIMEDOUT" || err.code == "ECONNREFUSED")) {
+					//对于无法请求的，删除
 					modules.peer.remove(peer.ip, peer.port, function (err) {
 						if (!err) {
 							library.logger.info('Removing peer ' + req.method + ' ' + req.url)
@@ -546,6 +549,7 @@ Transport.prototype.getFromPeer = function (peer, options, cb) {
 					});
 				} else {
 					if (!options.not_ban) {
+						//对于状态码不是200的，比如304等禁止状态，更改其状态
 						modules.peer.state(peer.ip, peer.port, 0, 600, function (err) {
 							if (!err) {
 								library.logger.info('Ban 10 min ' + req.method + ' ' + req.url);
